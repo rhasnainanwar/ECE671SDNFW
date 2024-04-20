@@ -1,2 +1,3 @@
-# ECE671SDNFW
-SDN-based Dynamic Firewall
+# ECE671 Class Project
+Advisor: Dr. Michael Zink
+Topic: SDN-based Dynamic Firewall
