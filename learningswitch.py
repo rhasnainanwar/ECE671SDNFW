@@ -68,8 +68,6 @@ class LearningSwitch (object):
     # Define firewall rule parameters
     self.inside_network = IPAddr("192.168.1.0")  # Inside network IP address
     self.inside_subnet = 24  # Inside network subnet mask
-    self.outside_network = IPAddr("172.16.0.0")  # Outside network IP address
-    self.outside_subnet = 12  # Outside network subnet mask
 
     # We want to hear PacketIn messages, so we listen
     # to the connection
@@ -155,7 +153,9 @@ class LearningSwitch (object):
     """
     if ip_packet: # If it's an IP packet
       # Check if packet is from inside network going outside
-      if src_ip.inNetwork(self.inside_network, self.inside_subnet) and dst_ip.inNetwork(self.outside_network, self.outside_subnet):
+      if src_ip.inNetwork(self.inside_network, self.inside_subnet) and dst_ip.inNetwork(self.inside_network, self.inside_subnet):
+        log.info("Local network traffic")
+      elif src_ip.inNetwork(self.inside_network, self.inside_subnet) and not dst_ip.inNetwork(self.inside_network, self.inside_subnet):
         log.info("Packet coming in from inside network going outside")
       else:
         log.info("Packet coming in from outside network going inside")
