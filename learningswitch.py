@@ -24,6 +24,7 @@ from pox.core import core
 import pox.openflow.libopenflow_01 as of
 from pox.lib.util import dpid_to_str
 from pox.lib.util import str_to_bool
+from pox.lib.addresses import IPAddr
 import time
 
 # constants
@@ -53,31 +54,8 @@ class LearningSwitch (object):
   table.  If we don't know the port, we simply send the message out
   all ports except the one it came in on.  (In the presence of loops,
   this is bad!).
-
-  In short, our algorithm looks like this:
-
-  For each packet from the switch:
-  1) Use source address and switch port to update address/port table
-  2) Is transparent = False and either Ethertype is LLDP or the packet's
-     destination address is a Bridge Filtered address?
-     Yes:
-        2a) Drop packet -- don't forward link-local traffic (LLDP, 802.1x)
-            DONE
-  3) Is destination multicast?
-     Yes:
-        3a) Flood the packet
-            DONE
-  4) Port for destination address in our address/port table?
-     No:
-        4a) Flood the packet
-            DONE
-  5) Is output port the same as input port?
-     Yes:
-        5a) Drop packet and similar ones for a while
-  6) Install flow table entry in the switch so that this
-     flow goes out the appopriate port
-     6a) Send the packet out appropriate port
   """
+
   def __init__ (self, connection, transparent):
     # Switch we'll be adding L2 learning switch capabilities to
     self.connection = connection
@@ -85,6 +63,13 @@ class LearningSwitch (object):
 
     # Our table
     self.macToPort = {}
+    self.connections = {}
+
+    # Define firewall rule parameters
+    self.inside_network = IPAddr("192.168.1.0")  # Inside network IP address
+    self.inside_subnet = 24  # Inside network subnet mask
+    self.outside_network = IPAddr("172.16.0.0")  # Outside network IP address
+    self.outside_subnet = 12  # Outside network subnet mask
 
     # We want to hear PacketIn messages, so we listen
     # to the connection
@@ -96,12 +81,22 @@ class LearningSwitch (object):
     #log.debug("Initializing LearningSwitch, transparent=%s",
     #          str(self.transparent))
 
-  def _handle_PacketIn (self, event):
+  def _handle_PacketIn(self, event):
     """
     Handle packet in messages from the switch to implement above algorithm.
     """
 
     packet = event.parsed
+
+    # Extract IP layer from the packet
+    ip_packet = packet.find('ipv4')
+
+    if ip_packet: # If it's an IP packet
+      src_ip = ip_packet.srcip
+      dst_ip = ip_packet.dstip
+
+      log.info("Packet from %s to %s" % (src_ip, dst_ip))
+      log.info("Port: %s" % event.port)
 
     def flood (message = None):
       """ Floods the packet """
@@ -154,8 +149,20 @@ class LearningSwitch (object):
         drop() # 2a
         return
 
+
     """
-    The learning switch logic goes here.
+    The switch FIREWALL logic goes here.
+    """
+    if ip_packet: # If it's an IP packet
+      # Check if packet is from inside network going outside
+      if src_ip.inNetwork(self.inside_network, self.inside_subnet) and dst_ip.inNetwork(self.outside_network, self.outside_subnet):
+        log.info("Packet coming in from inside network going outside")
+      else:
+        log.info("Packet coming in from outside network going inside")
+      
+
+    """
+    The LEARNING switch logic goes here.
     """
     # 3) Is destination multicast?
     if packet.dst.is_multicast:

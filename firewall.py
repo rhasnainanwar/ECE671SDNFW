@@ -12,9 +12,9 @@ class MyFirewallController(object):
         core.openflow.addListeners(self)
 
         # Define firewall rule parameters
-        self.inside_network = IPAddr("192.168.1.100")  # Inside network IP address
+        self.inside_network = IPAddr("192.168.1.0")  # Inside network IP address
         self.inside_subnet = 24  # Inside network subnet mask
-        self.outside_network = IPAddr("172.16.0.100")  # Outside network IP address
+        self.outside_network = IPAddr("172.16.0.0")  # Outside network IP address
         self.outside_subnet = 12  # Outside network subnet mask
         self.connections = {}  # Dictionary to store established connections
 
