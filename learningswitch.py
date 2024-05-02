@@ -76,8 +76,29 @@ class LearningSwitch (object):
     # We just use this to know when to log a helpful message
     self.hold_down_expired = _flood_delay == 0
 
-    #log.debug("Initializing LearningSwitch, transparent=%s",
-    #          str(self.transparent))
+  def print_connections(self):
+    # Print active connections
+    out = "\nActive connections:\n"
+    for conn_str in self.connections:
+      out += "%s\n" % conn_str
+    log.info(out)
+
+  def add_connection(self, conn_str):
+    # Add connection to the dictionary
+    self.connections[conn_str] = time.time()
+    self.print_connections()
+  
+  def remove_connection(self, conn_str):
+    # Remove connection from the dictionary
+    if conn_str in self.connections:
+      del self.connections[conn_str]
+    self.print_connections()
+
+  def is_established(self, conn_str):
+    # Check if the packet is part of an established connection
+    # Check if the outbound connection exists
+    return conn_str in self.connections
+  
 
   def _handle_PacketIn(self, event):
     """
@@ -85,16 +106,8 @@ class LearningSwitch (object):
     """
 
     packet = event.parsed
-
     # Extract IP layer from the packet
     ip_packet = packet.find('ipv4')
-
-    if ip_packet: # If it's an IP packet
-      src_ip = ip_packet.srcip
-      dst_ip = ip_packet.dstip
-
-      log.info("Packet from %s to %s" % (src_ip, dst_ip))
-      log.info("Port: %s" % event.port)
 
     def flood (message = None):
       """ Floods the packet """
@@ -152,14 +165,49 @@ class LearningSwitch (object):
     The switch FIREWALL logic goes here.
     """
     if ip_packet: # If it's an IP packet
+      src_ip = ip_packet.srcip
+      dst_ip = ip_packet.dstip
+
+      # log.info("Packet from %s to %s" % (src_ip, dst_ip))
+      # log.info("Port: %s" % event.port)
+
+      tcp_packet = packet.find('tcp')
+      if tcp_packet:
+        src_port = tcp_packet.srcport
+        dst_port = tcp_packet.dstport
+
+      conn_str = "" # inIP:inPort-outIP:outPort
+
       # Check if packet is from inside network going outside
       if src_ip.inNetwork(self.inside_network, self.inside_subnet) and dst_ip.inNetwork(self.inside_network, self.inside_subnet):
-        log.info("Local network traffic")
+        log.info("Firewall: Local network traffic")
       elif src_ip.inNetwork(self.inside_network, self.inside_subnet) and not dst_ip.inNetwork(self.inside_network, self.inside_subnet):
-        log.info("Packet coming in from inside network going outside")
+        if tcp_packet:
+          log.info("Firewall: Packet IN->OUT: %s:%s -> %s:%s" % (src_ip, src_port, dst_ip, dst_port))
+          conn_str = "%s:%s-%s:%s" % (src_ip, src_port, dst_ip, dst_port)
+
+          if tcp_packet.SYN and not tcp_packet.ACK: # new connection
+            log.info("Firewall: SYN packet, adding to active connections.")
+            self.add_connection(conn_str)
+          elif tcp_packet.RST or tcp_packet.FIN: # connection reset or closed
+            log.info("Firewall: RST or FIN packet, removing from active connections.")
+            self.remove_connection(conn_str)
       else:
-        log.info("Packet coming in from outside network going inside")
-      
+        if tcp_packet:
+          log.info("Firewall: Packet OUT->IN: %s:%s -> %s:%s" % (src_ip, src_port, dst_ip, dst_port))
+          conn_str = "%s:%s-%s:%s" % (dst_ip, dst_port, src_ip, src_port)
+          
+          if tcp_packet.RST or tcp_packet.FIN: # connection reset or closed
+            log.info("Firewall: RST or FIN packet, removing from active connections.")
+            self.remove_connection(conn_str)
+            # Not part of an established connection
+          if not self.is_established(conn_str):
+            log.info("Firewall:UNAUTHORIZED: Dropping packet from %s:%s" % (src_ip, src_port))
+            drop(DROP_DURATION)
+          # otherwise, allow the packet and use learning logic 
+        else:
+          log.info("Firewall: Dropping non-TCP packet.")
+          self.remove_connection(conn_str)
 
     """
     The LEARNING switch logic goes here.

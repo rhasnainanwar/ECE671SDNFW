@@ -15,7 +15,7 @@ Each subnet consists of a single host connected to
 a single switch:
 
     r0-eth1 - self.s1-eth1 - c1-eth0 (IP: 192.168.1.100)
-    r0-eth2 - self.s2-eth1 - h1-eth0 (IP: 172.16.0.100)
+    r0-eth2 - self.s2-eth1 - i1-eth0 (IP: 172.16.0.100)
 
 This relies on default routing entries that are
 automatically created for each router interface, as well
@@ -73,18 +73,18 @@ def multiControllerNet():
                     params2={ 'ip' : '172.16.0.1/12' } )
 
     info( "*** Creating hosts\n" )
-    h1 = net.addHost( 'h1', ip='192.168.1.100/24',
+    i1 = net.addHost( 'i1', ip='192.168.1.100/24',
                            defaultRoute='via 192.168.1.1' )
-    h2 = net.addHost( 'h2', ip='192.168.1.101/24',
+    i2 = net.addHost( 'i2', ip='192.168.1.101/24',
                         defaultRoute='via 192.168.1.1' )
 
-    h8 = net.addHost( 'h8', ip='172.16.0.101/12',
+    o1 = net.addHost( 'o1', ip='172.16.0.101/12',
                         defaultRoute='via 172.16.0.1' )
-    h9 = net.addHost( 'h9', ip='172.16.0.100/12',
+    o2 = net.addHost( 'o2', ip='172.16.0.100/12',
                         defaultRoute='via 172.16.0.1' )
 
     # Wire the switches with hosts
-    for h, s in [ (h1, s1), (h2, s1), (h8, s2), (h9, s2)]:
+    for h, s in [ (i1, s1), (i2, s1), (o1, s2), (o2, s2)]:
         net.addLink( h, s )
     
     info( "*** Starting network\n" )
